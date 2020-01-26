@@ -479,17 +479,19 @@ def main():
 		return
 		
 	# VERY BASIC:
-	connection = VistARPCConnection(args[0], int(args[1]), args[2], args[3], "CG FMQL QP USER", RPCLogger())
-	reply = connection.invokeRPC("CG FMQL QP", ["OP:DESCRIBE^TYPE:2^ID:9"])
-	json.loads(reply)
-	print(reply[0:31])
+	connection = VistARPCConnection(args[0], int(args[1]), args[2], args[3], "XUPROGMODE", RPCLogger())
+	reply = connection.invokeRPC("ORWPT ID INFO", "2")
+	# json.loads(reply)
+	print(reply)
 
 	# 10 and 20 ie. pool size 10, request number 20. Can interplay. Should see some connection come more to the fore.
-	# Should see, full size isn't 
-	pool = RPCConnectionPool("VistA", 30, args[0], int(args[1]), args[2], args[3], "CG FMQL QP USER", RPCLogger())
-	pool.preconnect(5)
-	for i in range(20):
-		trpcInvoker = ThreadedRPCInvoker(pool, "CG FMQL QP", ["OP:DESCRIBE^TYPE:2^ID:9"])
+	# Should see, full size isn't
+        print("Testing threaded connection pool")
+	pool = RPCConnectionPool("VistA", 30, args[0], int(args[1]), args[2], args[3], "XUPROGMODE", RPCLogger())
+	pool.preconnect(3)
+	for i in range(3):
+                patient_id = str(i + 1)
+	 	trpcInvoker = ThreadedRPCInvoker(pool, "ORWPT ID INFO", patient_id)
 		trpcInvoker.start()
 	
 if __name__ == "__main__":
