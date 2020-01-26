@@ -160,9 +160,9 @@ class RPCConnection(object):
                         # Note: must make big enough so error strings below are fetched.
                         # TBD: interplay setting here and in FMQL (Node Size is 201)
 
-                        msgChunk = self.sock.recv(256)
+                        msgChunk = self.sock.recv(300)
                         msgChunk = msgChunk.decode('utf-8')
-                        print("msgChunk: %s" % (msgChunk[:4],))
+#                        print("msgChunk: %s" % (repr(msgChunk),))
                         # Connection closed
                         # Note: don't differentiate connection closed and no chunks sent from connection just dropped
                         if not msgChunk:
@@ -177,6 +177,7 @@ class RPCConnection(object):
                                 msgChunks.append(msgChunk[:-1])
                                 break
                         msgChunks.append(msgChunk)
+#                print("msgChunks: %s" % (repr(msgChunks)))
                 if len(msgChunks):
                         msg = "".join(msgChunks)
                 self.logger.logInfo("RPCConnection", "Message of length %d received in %d chunks on connection %d" % (len(msg), noChunks, self.poolId))
@@ -205,20 +206,30 @@ class VistARPCConnection(RPCConnection):
 
                 # 3. Sign on
                 signOn = self.makeRequest("XUS SIGNON SETUP", [])
+                # print("signOn: %s" % (repr(signOn),))
                 self.sock.send(signOn.encode('utf-8'))
                 connectReply = self.readToEndMarker() # assume always ok
+                # print("connectReply: %s" % (repr(connectReply),))
                 accessVerify = self.encrypt(self.access + ";" + self.verify)
+                # need to decode as the encrypt function already encoded in Python 2
+                accessVerify = accessVerify.decode()
                 login = self.makeRequest("XUS AV CODE", [accessVerify])
+                # print("login: %s" % (repr(login),))
                 self.sock.send(login.encode('utf-8'))
                 connectReply = self.readToEndMarker()
+                # print("connectReply: %s" % (repr(connectReply),))
                 if re.search(r'Not a valid ACCESS CODE/VERIFY CODE pair', connectReply):
                         raise Exception("VistARPCConnection", connectReply)
                         
                 # 4. Context (per connection. CIA has it per request)
                 eMSGCONTEXT = self.encrypt(self.context)
+                # need to decode as the encrypt function already encoded in Python 2
+                eMSGCONTEXT = eMSGCONTEXT.decode()
                 ctx = self.makeRequest("XWB CREATE CONTEXT", [eMSGCONTEXT])
+                # print("ctx: %s" % (repr(ctx),))
                 self.sock.send(ctx.encode('utf-8'))
                 connectReply = self.readToEndMarker()
+                # print("connectReply: %s" % (repr(connectReply),))
                 self.logger.logInfo("CONNECT", "context reply is %s" % connectReply)
                 if re.search(r'Application context has not been created', connectReply) or re.search(r'does not exist on server', connectReply):
                         raise Exception("VistARPCConnection", connectReply)
