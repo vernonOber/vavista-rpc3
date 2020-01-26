@@ -455,9 +455,9 @@ class ThreadedRPCInvoker(threading.Thread):
 		self.requestParameters = requestParameters
 		
 	def run(self):
-		print "Sending another request ..."
+		print("Sending another request ...")
 		reply = self.pool.invokeRPC(self.requestName, self.requestParameters)
-		print "First part of reply: %s" % reply[0:50]
+		print("First part of reply: %s" % (reply[0:50],))
 
 class RPCLogger:
 	def __init__(self):
@@ -467,7 +467,7 @@ class RPCLogger:
 	def logError(self, tag, msg):
 		self.__log(tag, msg)
 	def __log(self, tag, msg):
-		print "BROKERRPC -- %s %s" % (tag, msg)
+		print("BROKERRPC -- %s %s" % (tag, msg))
 
 import getopt, sys
 import json
@@ -475,14 +475,14 @@ import time
 def main():
 	opts, args = getopt.getopt(sys.argv[1:], "")
 	if len(args) < 4:
-		print "Enter <host> <port> <access> <verify>"
+		print("Enter <host> <port> <access> <verify>")
 		return
 		
 	# VERY BASIC:
 	connection = VistARPCConnection(args[0], int(args[1]), args[2], args[3], "CG FMQL QP USER", RPCLogger())
 	reply = connection.invokeRPC("CG FMQL QP", ["OP:DESCRIBE^TYPE:2^ID:9"])
 	json.loads(reply)
-	print reply[0:31]
+	print(reply[0:31])
 
 	# 10 and 20 ie. pool size 10, request number 20. Can interplay. Should see some connection come more to the fore.
 	# Should see, full size isn't 
