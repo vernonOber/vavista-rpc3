@@ -17,15 +17,18 @@
 
  Base Connection for VistA and CIA Brokers with specializations for the 
  particulars of those brokers.
+
+brokerRPC.py is not compatible with Python 3, see brokerRPC3.py
  
 """
 
 __author__ =  'Caregraf'
 __copyright__ = "Copyright 2010-2011, Caregraf"
-__credits__ = ["Sam Habiel", "Jon Tai", "Andy Purdue", "Jeff Apple", "Ben Mehling"]
+__credits__ = ["Sam Habiel", "Jon Tai", "Andy Purdue",
+               "Jeff Apple", "Ben Mehling", "Vernon Oberholzer"]
 __license__ = "AGPL"
 __version__=  '0.9'
-__status__ = "Production"
+__status__ = "Development"
 
 import StringIO
 import re
@@ -155,6 +158,7 @@ class RPCConnection(object):
 			# Note: must make big enough so error strings below are fetched.
 			# TBD: interplay setting here and in FMQL (Node Size is 201)
 			msgChunk = self.sock.recv(256)
+                        # print("msgChunk: %s" % (repr(msgChunk),))
 			# Connection closed
 			# Note: don't differentiate connection closed and no chunks sent from connection just dropped
 			if not msgChunk:
@@ -201,8 +205,10 @@ class VistARPCConnection(RPCConnection):
 		connectReply = self.readToEndMarker() # assume always ok
 		accessVerify = self.encrypt(self.access + ";" + self.verify)
 		login = self.makeRequest("XUS AV CODE", [accessVerify])
+                # print("login: %s" % (repr(login),))
 		self.sock.send(login)
 		connectReply = self.readToEndMarker()
+                # print("connectReply: %s" % (repr(connectReply),))
 		if re.search(r'Not a valid ACCESS CODE/VERIFY CODE pair', connectReply):
 			raise Exception("VistARPCConnection", connectReply)
 			
@@ -479,18 +485,20 @@ def main():
 		return
 		
 	# VERY BASIC:
-	connection = VistARPCConnection(args[0], int(args[1]), args[2], args[3], "CG FMQL QP USER", RPCLogger())
-	reply = connection.invokeRPC("CG FMQL QP", ["OP:DESCRIBE^TYPE:2^ID:9"])
-	json.loads(reply)
-	print(reply[0:31])
+	connection = VistARPCConnection(args[0], int(args[1]), args[2], args[3], "XUPROGMODE", RPCLogger())
+	reply = connection.invokeRPC("ORWPT ID INFO", "2")
+	# json.loads(reply)
+	print(reply)
 
 	# 10 and 20 ie. pool size 10, request number 20. Can interplay. Should see some connection come more to the fore.
-	# Should see, full size isn't 
-	pool = RPCConnectionPool("VistA", 30, args[0], int(args[1]), args[2], args[3], "CG FMQL QP USER", RPCLogger())
-	pool.preconnect(5)
-	for i in range(20):
-		trpcInvoker = ThreadedRPCInvoker(pool, "CG FMQL QP", ["OP:DESCRIBE^TYPE:2^ID:9"])
-		trpcInvoker.start()
+	# Should see, full size isn't
+        print("Testing threaded connection pool")
+	pool = RPCConnectionPool("VistA", 30, args[0], int(args[1]), args[2], args[3], "XUPROGMODE", RPCLogger())
+	pool.preconnect(3)
+	for i in range(3):
+               patient_id = str(i + 1)
+ 	       trpcInvoker = ThreadedRPCInvoker(pool, "ORWPT ID INFO", patient_id)
+	       trpcInvoker.start()
 	
 if __name__ == "__main__":
 	main()
