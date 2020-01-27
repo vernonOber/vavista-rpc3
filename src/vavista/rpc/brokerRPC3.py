@@ -17,15 +17,18 @@
 
  Base Connection for VistA and CIA Brokers with specializations for the 
  particulars of those brokers.
+
+brokerRPC3.py was started to provide Python 3 support
  
 """
 
 __author__ =  'Caregraf'
 __copyright__ = "Copyright 2010-2011, Caregraf"
-__credits__ = ["Sam Habiel", "Jon Tai", "Andy Purdue", "Jeff Apple", "Ben Mehling"]
+__credits__ = ["Sam Habiel", "Jon Tai", "Andy Purdue",
+               "Jeff Apple", "Ben Mehling", "Vernon Oberholzer"]
 __license__ = "AGPL"
 __version__=  '0.9'
-__status__ = "Production"
+__status__ = "Development"
 
 import io
 import re
@@ -493,27 +496,35 @@ class RPCLogger:
 import getopt, sys
 import json
 import time
-def main():
-        opts, args = getopt.getopt(sys.argv[1:], "")
-        if len(args) < 4:
-                print("Enter <host> <port> <access> <verify>")
-                return
-                
-        # VERY BASIC:
-        connection = VistARPCConnection(args[0], int(args[1]), args[2], args[3], "XUPROGMODE", RPCLogger())
-        reply = connection.invokeRPC("ORWPT ID INFO", "2")
-        # json.loads(reply)
-        print(reply)
 
-        # 10 and 20 ie. pool size 10, request number 20. Can interplay. Should see some connection come more to the fore.
-        # Should see, full size isn't
-        # print("Testing threaded connection pool")
-        # pool = RPCConnectionPool("VistA", 30, args[0], int(args[1]), args[2], args[3], "XUPROGMODE", RPCLogger())
-        # pool.preconnect(3)
-        # for i in range(3):
-        #        patient_id = str(i + 1)
-        #        trpcInvoker = ThreadedRPCInvoker(pool, "ORWPT ID INFO", patient_id)
-        #        trpcInvoker.start()
-        
+
+def main():
+    opts, args = getopt.getopt(sys.argv[1:], "")
+    if len(args) < 4:
+        print("Enter <host> <port> <access> <verify>")
+        return
+
+# VERY BASIC:
+    connection = VistARPCConnection(args[0], int(args[1]),
+                                    args[2], args[3], "XUPROGMODE",
+                                    RPCLogger())
+    reply = connection.invokeRPC("ORWPT ID INFO", "2")
+    # json.loads(reply)
+    print(reply)
+
+    # 10 and 20 ie. pool size 10, request number 20. Can interplay.
+    # Should see some connection come more to the fore.
+    # Should see, full size isn't
+    print("Testing threaded connection pool")
+    pool = RPCConnectionPool("VistA", 30, args[0], int(args[1]),
+                             args[2], args[3], "XUPROGMODE", RPCLogger())
+    pool.preconnect(3)
+    for i in range(3):
+        patient_id = str(i + 1)
+        trpcInvoker = ThreadedRPCInvoker(pool,
+                                         "ORWPT ID INFO", patient_id)
+        trpcInvoker.start()
+
+
 if __name__ == "__main__":
-        main()
+    main()
