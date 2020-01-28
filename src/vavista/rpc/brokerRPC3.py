@@ -2,8 +2,8 @@
 
 #
 # LICENSE:
-# This program is free software; you can redistribute it and/or modify it 
-# under the terms of the GNU Affero General Public License version 3 (AGPL) 
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License version 3 (AGPL)
 # as published by the Free Software Foundation.
 # (c) 2010-2011 caregraf.org
 #
@@ -15,33 +15,33 @@
  VA Broker or IHS's CIA Broker. It provides thread-safe access through a Pool
  class.
 
- Base Connection for VistA and CIA Brokers with specializations for the 
+ Base Connection for VistA and CIA Brokers with specializations for the
  particulars of those brokers.
 
 brokerRPC3.py was started to provide Python 3 support
- 
+
 """
 
-__author__ =  'Caregraf'
+__author__ = 'Caregraf'
 __copyright__ = "Copyright 2010-2011, Caregraf"
 __credits__ = ["Sam Habiel", "Jon Tai", "Andy Purdue",
                "Jeff Apple", "Ben Mehling", "Vernon Oberholzer"]
 __license__ = "AGPL"
-__version__=  '0.9'
+__version__ = '0.9'
 __status__ = "Development"
 
-import io
+# import io
 import re
 import time
 import socket
 from random import randint
 
-class RPCConnection(object):
 
-        """
-        Hardcoded in VistA/RPMS access code.
-        """
-        CIPHER = [
+class RPCConnection(object):
+    """
+    Hardcoded in VistA/RPMS access code.
+    """
+    CIPHER = [
                 "wkEo-ZJt!dG)49K{nX1BS$vH<&:Myf*>Ae0jQW=;|#PsO`'%+rmb[gpqN,l6/hFC@DcUa ]z~R}\"V\\iIxu?872.(TYL5_3",
                 "rKv`R;M/9BqAF%&tSs#Vh)dO1DZP> *fX'u[.4lY=-mg_ci802N7LTG<]!CWo:3?{+,5Q}(@jaExn$~p\\IyHwzU\"|k6Jeb",
                 "\\pV(ZJk\"WQmCn!Y,y@1d+~8s?[lNMxgHEt=uw|X:qSLjAI*}6zoF{T3#;ca)/h5%`P4$r]G'9e2if_>UDKb7<v0&- RBO.",
@@ -63,128 +63,136 @@ class RPCConnection(object):
                 "yYgjf\"5VdHc#uA,W1i+v'6|@pr{n;DJ!8(btPGaQM.LT3oe?NB/&9>Z`-}02*%x<7lsqz4OS ~E$\\R]KI[:UwC_=h)kXmF",
                 "5:iar.{YU7mBZR@-K|2 \"+~`M%8sq4JhPo<_X\\Sg3WC;Tuxz,fvEQ1p9=w}FAI&j/keD0c?)LN6OHV]lGy'$*>nd[(tb!#"]
 
-        def __init__(self, host, port, access, verify, context, logger, endMark, poolId):
-                """
-                - host/port
-                - vista's security (access, verify)
-                - a logger that implements logError and logInfo
-                - endMark marks end of message
-                - poolId is a connection pool's id for a connection. This is used by the logger.
-                """
+    def __init__(self, host, port, access, verify, context, logger,
+                 endMark, poolId):
+        """
+        - host/port
+        - vista's security (access, verify)
+        - a logger that implements logError and logInfo
+        - endMark marks end of message
+        - poolId is a connection pool's id for a connection.
+        This is used by the logger.
+        """
 
-                self.logger = logger
-                
-                self.host = host
-                self.port = port
-                self.access = access
-                self.verify = verify
-                self.context = context
-                self.endMark = endMark
+        self.logger = logger
+        self.host = host
+        self.port = port
+        self.access = access
+        self.verify = verify
+        self.context = context
+        self.endMark = endMark
+        self.poolId = poolId
+        self.sock = None
 
-                self.poolId = poolId
+    def invokeRPC(self, name, params):
+        """
+        Invoke an RPC. If the connection is closed, try to reopen it once.
+        If fail again then raise an exception.
+        This takes care of connection time outs
+        which happens with the CIA Broker. Note CIA Broker does support
+        a Ping but
+        this approach avoids hogging connections when traffic is low.
+        """
+        if not self.sock:
+            self.logger.logInfo("RPCConnection",
+                                "Connecting %d as Socket not initialized" % self.poolId)
+            self.connect()
+            # CIA closes socket in two ways. Elegantly after 2 minutes or so of
+            # idleness and abruptly leading to Errno 10053
+        e = None
+        try:
+            # make request AFTER (re)connect. CIA must know UCI.
+            request = self.makeRequest(name, params)
+            self.sock.send(request.encode('utf-8'))
+            msg = self.readToEndMarker()
+        except socket.error as e:
+            print(e)
+            msg = ""
+        # remote end closed so reconnect and retry.
+        if not len(msg):
+            error_message = "empty reply"
+            self.logger.logInfo("RPCConnection",
+                                "Forced to reconnect connection %d after reply \
+                                failed (%s))" % (self.poolId, error_message))
+            self.connect()
+            request = self.makeRequest(name, params)
+            self.sock.send(request.encode('utf-8'))
+            msg = self.readToEndMarker()
+        return msg
 
-                self.sock = None
-        
-        def invokeRPC(self, name, params):
-                """     
-                Invoke an RPC. If the connection is closed, try to reopen it once. If fail
-                again then raise an exception. This takes care of connection time outs
-                which happens with the CIA Broker. Note CIA Broker does support a Ping but
-                this approach avoids hogging connections when traffic is low.
-                """
-                if not self.sock:
-                        self.logger.logInfo("RPCConnection", "Connecting %d as Socket not initialized" % self.poolId)
-                        self.connect()
-                # CIA closes socket in two ways. Elegantly after 2 minutes or so of idleness and abruptly leading to Errno 10053
-                e = None
-                try:
-                        # make request AFTER (re)connect. CIA must know UCI.
-                        request = self.makeRequest(name, params)
-                        self.sock.send(request.encode('utf-8'))
-                        msg = self.readToEndMarker()
-                except socket.error as e:
-                        print(e)
-                        msg = ""
-                # remote end closed so reconnect and retry.
-                if not len(msg):
-                        error_message = "empty reply"
-                                
-                        self.logger.logInfo("RPCConnection",
-                                            "Forced to reconnect connection %d after reply failed (%s))" % (self.poolId,
-                                                                                                            error_message))
-                        self.connect()
-                        request = self.makeRequest(name, params)
-                        self.sock.send(request.encode('utf-8'))
-                        msg = self.readToEndMarker()
-                return msg
+    def connect(self):
+        """
+        (Re)connect/activate the connection. Sets up basic pipe.
+        The hand shake
+        depends on this class' subclass
+        """
+        if self.sock:
+            self.sock.close()
+        # Setup the connection
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.connect((self.host, self.port))
+        self.logger.logInfo("RPCConnection", "Connecting to %s %d - Step1 for\
+        %d ..." % (self.host, self.port, self.poolId))
 
-        def connect(self):
-                """
-                (Re)connect/activate the connection. Sets up basic pipe. The hand shake
-                depends on this class' subclass
-                """
-                if self.sock:
-                        self.sock.close()
-                # Setup the connection
-                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.sock.connect((self.host, self.port))
-                self.logger.logInfo("RPCConnection", "Connecting to %s %d - Step1 for %d ..." % (self.host, self.port, self.poolId))
-                
-        def encrypt(cls, val):
-                ra = randint(0, 18)
-                rb = randint(0, 18)
-                while ((rb == ra) or (rb == 0)):
-                        rb = randint(0, 18)
-                cra = RPCConnection.CIPHER[ra]
-                crb = RPCConnection.CIPHER[rb]
-                cval = chr(ra + 32)
-                for i in range(len(val)):
-                        c = val[i]
-                        index = cra.find(c)
-                        if index == -1:
-                                # no str(c)
-                                cval += str(c)
-                        else:
-                                cval += str(crb[index])
-                cval += chr(rb + 32)
-                return cval.encode("utf-8")
-                
-        def readToEndMarker(self):
-                """
+    def encrypt(cls, val):
+        ra = randint(0, 18)
+        rb = randint(0, 18)
+        while ((rb == ra) or (rb == 0)):
+            rb = randint(0, 18)
+        cra = RPCConnection.CIPHER[ra]
+        crb = RPCConnection.CIPHER[rb]
+        cval = chr(ra + 32)
+        for i in range(len(val)):
+            c = val[i]
+            index = cra.find(c)
+            if index == -1:
+                # no str(c)
+                cval += str(c)
+            else:
+                cval += str(crb[index])
+        cval += chr(rb + 32)
+        return cval.encode("utf-8")
+
+    def readToEndMarker(self):
+        """
                 Endmarker:
                 - VISTA: chr(4)
                 - CIA: chr(255)
                 """
-                msgChunks = []
-                noChunks = 0
-                msg = ""
-                while 1:
-                        # TBD: Interplay with FMQL Response size settings. Seems to send just that amount
-                        # Note: must make big enough so error strings below are fetched.
-                        # TBD: interplay setting here and in FMQL (Node Size is 201)
+        msgChunks = []
+        noChunks = 0
+        msg = ""
+        while 1:
+            # TBD: Interplay with FMQL Response size settings. Seems to send
+            # just that amount Note: must make big enough so error strings
+            # below are fetched.
+            # TBD: interplay setting here and in FMQL (Node Size is 201)
 
-                        msgChunk = self.sock.recv(300)
-                        msgChunk = msgChunk.decode('utf-8')
-#                        print("msgChunk: %s" % (repr(msgChunk),))
-                        # Connection closed
-                        # Note: don't differentiate connection closed and no chunks sent from connection just dropped
-                        if not msgChunk:
-                                break
-                        if not len(msgChunks):
-                                # \x00\x00 in VistA. CIA uses ID\x00
-                                # but some connect handshake lack this
-                                if msgChunk[0] == "\x00": # smh fix
-                                        msgChunk = msgChunk[2:]
-                        noChunks += 1
-                        if msgChunk[-1] == self.endMark:
-                                msgChunks.append(msgChunk[:-1])
-                                break
-                        msgChunks.append(msgChunk)
-#                print("msgChunks: %s" % (repr(msgChunks)))
-                if len(msgChunks):
-                        msg = "".join(msgChunks)
-                self.logger.logInfo("RPCConnection", "Message of length %d received in %d chunks on connection %d" % (len(msg), noChunks, self.poolId))
-                return msg
+            msgChunk = self.sock.recv(256)
+            msgChunk = msgChunk.decode('utf-8')
+            # print("msgChunk: %s" % (repr(msgChunk),))
+            # Connection closed
+            # Note: don't differentiate connection closed and no chunks sent
+            # from connection just dropped
+            if not msgChunk:
+                break
+            if not len(msgChunks):
+                # \x00\x00 in VistA. CIA uses ID\x00
+                # but some connect handshake lack this
+                if msgChunk[0] == "\x00":  # smh fix
+                    msgChunk = msgChunk[2:]
+            noChunks += 1
+            if msgChunk[-1] == self.endMark:
+                msgChunks.append(msgChunk[:-1])
+                break
+            msgChunks.append(msgChunk)
+            # print("msgChunks: %s" % (repr(msgChunks)))
+        if len(msgChunks):
+            msg = "".join(msgChunks)
+        self.logger.logInfo("RPCConnection", "Message of length %d received in \
+        %d chunks on connection %d" % (len(msg), noChunks, self.poolId))
+        return msg
+
 
 class VistARPCConnection(RPCConnection):
 
