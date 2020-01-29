@@ -196,102 +196,113 @@ class RPCConnection(object):
 
 class VistARPCConnection(RPCConnection):
 
-        def __init__(self, host, port, access, verify, context, logger, poolId=-1):
-                # End Token for messages is chr(4)
-                RPCConnection.__init__(self, host, port, access, verify, context, logger, chr(4), poolId)
+    def __init__(self, host, port, access, verify, context, logger, poolId=-1):
+        # End Token for messages is chr(4)
+        RPCConnection.__init__(self, host, port, access, verify, context,
+                               logger, chr(4), poolId)
 
-        def connect(self):
-                """
-                How VistA Broker connects
-                """
-        
-                # 1. Basic Connect
-                RPCConnection.connect(self)
+    def connect(self):
+        """
+        How VistA Broker connects
+        """
 
-                # 2. TCP 
-                tcpConnect = self.makeRequest("TCPConnect", [socket.gethostbyname(socket.gethostname()), "0", "FMQL"], True)
-                self.sock.send(tcpConnect.encode('utf-8'))
-                connectReply = self.readToEndMarker()
-                if not re.match(r'accept', connectReply):
-                        raise Exception("VistARPCConnection", connectReply)
+        # 1. Basic Connect
+        RPCConnection.connect(self)
 
-                # 3. Sign on
-                signOn = self.makeRequest("XUS SIGNON SETUP", [])
-                # print("signOn: %s" % (repr(signOn),))
-                self.sock.send(signOn.encode('utf-8'))
-                connectReply = self.readToEndMarker() # assume always ok
-                # print("connectReply: %s" % (repr(connectReply),))
-                accessVerify = self.encrypt(self.access + ";" + self.verify)
-                # need to decode as the encrypt function already encoded in Python 2
-                accessVerify = accessVerify.decode()
-                login = self.makeRequest("XUS AV CODE", [accessVerify])
-                # print("login: %s" % (repr(login),))
-                self.sock.send(login.encode('utf-8'))
-                connectReply = self.readToEndMarker()
-                # print("connectReply: %s" % (repr(connectReply),))
-                if re.search(r'Not a valid ACCESS CODE/VERIFY CODE pair', connectReply):
-                        raise Exception("VistARPCConnection", connectReply)
-                        
-                # 4. Context (per connection. CIA has it per request)
-                eMSGCONTEXT = self.encrypt(self.context)
-                # need to decode as the encrypt function already encoded in Python 2
-                eMSGCONTEXT = eMSGCONTEXT.decode()
-                ctx = self.makeRequest("XWB CREATE CONTEXT", [eMSGCONTEXT])
-                # print("ctx: %s" % (repr(ctx),))
-                self.sock.send(ctx.encode('utf-8'))
-                connectReply = self.readToEndMarker()
-                # print("connectReply: %s" % (repr(connectReply),))
-                self.logger.logInfo("CONNECT", "context reply is %s" % connectReply)
-                if re.search(r'Application context has not been created', connectReply) or re.search(r'does not exist on server', connectReply):
-                        raise Exception("VistARPCConnection", connectReply)
-                self.logger.logInfo("VistARPCConnection", "Handshake complete for connection %d" % self.poolId)
+        # 2. TCP
+        tcpConnect = self.makeRequest("TCPConnect",
+                                      [socket.gethostbyname(socket.gethostname
+                                                            ()), "0", "FMQL"], True)
+        self.sock.send(tcpConnect.encode('utf-8'))
+        connectReply = self.readToEndMarker()
+        if not re.match(r'accept', connectReply):
+            raise Exception("VistARPCConnection", connectReply)
 
-        def makeRequest(self, name, params, isCommand=False):
-                """ 
-                Format a the RPC request to send to VISTA:
-                name = Name of RPC
-                params = comma delimit list of paramters
-                isCommand = reserved for internal use. If you really want to know, it's for connecting or disconnecting.
-                """
+        # 3. Sign on
+        signOn = self.makeRequest("XUS SIGNON SETUP", [])
+        # print("signOn: %s" % (repr(signOn),))
+        self.sock.send(signOn.encode('utf-8'))
+        connectReply = self.readToEndMarker()  # assume always ok
+        # print("connectReply: %s" % (repr(connectReply),))
+        accessVerify = self.encrypt(self.access + ";" + self.verify)
+        # need to decode as the encrypt function already encoded in Python 2
+        accessVerify = accessVerify.decode()
+        login = self.makeRequest("XUS AV CODE", [accessVerify])
+        # print("login: %s" % (repr(login),))
+        self.sock.send(login.encode('utf-8'))
+        connectReply = self.readToEndMarker()
+        # print("connectReply: %s" % (repr(connectReply),))
+        if re.search(r'Not a valid ACCESS CODE/VERIFY CODE pair',
+                     connectReply):
+            raise Exception("VistARPCConnection", connectReply)
 
-                # Header saying that
-                # 1. We are doing NS broker '[XWB]'
-                # 2. We are running V 1
-                # 3. We are running Type 1
-                # 4. Envelope size is 3 (i.e. max message is 999; the longest number we can fit in 3 chars)
-                # 5. XWBPRT (whatever that is) is 0
-                protocoltoken = "[XWB]1130"
-                
-                if isCommand:   # Are we executing a command?
-                        commandtoken = "4"
-                else:
-                        commandtoken = "2" + chr(1) + "1"
-                
-                namespec = chr(len(name)) + name        # format name S-PACK
-                
-                paramsspecs = "5" # means that what follows is Params to RPC
-                
-                if not len(params):  # if no paramters do this and done
-                        paramsspecs += "4" + "f"
-                else: # if there are paramters
-                        for param in params:
-                                if type(param) is not dict:
-                                        paramsspecs += "0" # Type of RPC: Literal
-                                        paramsspecs += str(len(param)).zfill(3) + str(param) # L-PACK
-                                        paramsspecs += "f"  # End
-                                else: # we are in a dictionary
-                                        paramsspecs += "2" # Type of RPC: List
-                                        paramIndex = 1 # keep track of where to put the t's
-                                        for key,val in list(param.items()):
-                                                if paramIndex > 1: paramsspecs += "t" # t is the delimiter b/n each key,val pair
-                                                paramsspecs += str(len(str(key))).zfill(3) + str(key) # L-PACK
-                                                paramsspecs += str(len(str(val))).zfill(3) + str(val) # L-PACK
-                                                paramIndex += 1
-                                        paramsspecs += "f" # close list
+        # 4. Context (per connection. CIA has it per request)
+        eMSGCONTEXT = self.encrypt(self.context)
+        # need to decode as the encrypt function already encoded in Python 2
+        eMSGCONTEXT = eMSGCONTEXT.decode()
+        ctx = self.makeRequest("XWB CREATE CONTEXT", [eMSGCONTEXT])
+        # print("ctx: %s" % (repr(ctx),))
+        self.sock.send(ctx.encode('utf-8'))
+        connectReply = self.readToEndMarker()
+        # print("connectReply: %s" % (repr(connectReply),))
+        self.logger.logInfo("CONNECT", "context reply is %s" % connectReply)
+        if re.search(r'Application context has not been created',
+                     connectReply) or\
+                     re.search(r'does not exist on server', connectReply):
+            raise Exception("VistARPCConnection", connectReply)
+        self.logger.logInfo("VistARPCConnection",
+                            "Handshake complete for connection %d" % self.poolId)
 
-                endtoken = chr(4)
-                return protocoltoken + commandtoken + namespec + paramsspecs + endtoken  
-                
+    def makeRequest(self, name, params, isCommand=False):
+        """
+        Format a the RPC request to send to VISTA:
+        name = Name of RPC
+        params = comma delimit list of paramters
+        isCommand = reserved for internal use. If you really
+        want to know, it's for connecting or disconnecting.
+        """
+
+        # Header saying that
+        # 1. We are doing NS broker '[XWB]'
+        # 2. We are running V 1
+        # 3. We are running Type 1
+        # 4. Envelope size is 3 (i.e. max message is 999;
+        #    the longest number we can fit in 3 chars)
+        # 5. XWBPRT (whatever that is) is 0
+        protocoltoken = "[XWB]1130"
+
+        if isCommand:   # Are we executing a command?
+            commandtoken = "4"
+        else:
+            commandtoken = "2" + chr(1) + "1"
+
+        namespec = chr(len(name)) + name  # format name S-PACK
+
+        paramsspecs = "5"  # means that what follows is Params to RPC
+
+        if not len(params):  # if no paramters do this and done
+            paramsspecs += "4" + "f"
+        else:  # if there are paramters
+            for param in params:
+                if type(param) is not dict:
+                    paramsspecs += "0"  # Type of RPC: Literal
+                    paramsspecs += str(len(param)).zfill(3) + str(param)  # L-PACK
+                    paramsspecs += "f"  # End
+                else:  # we are in a dictionary
+                    paramsspecs += "2"  # Type of RPC: List
+                    paramIndex = 1  # keep track of where to put the t's
+                    for key, val in list(param.items()):
+                        if paramIndex > 1:
+                            paramsspecs += "t"  # t is the delimiter b/n each key,val pair
+                        paramsspecs += str(len(str(key))).zfill(3) + str(key)  # L-PACK
+                        paramsspecs += str(len(str(val))).zfill(3) + str(val)  # L-PACK
+                        paramIndex += 1
+                    paramsspecs += "f"  # close list
+
+        endtoken = chr(4)
+        return protocoltoken + commandtoken + namespec + paramsspecs + endtoken
+
+
 class CIARPCConnection(RPCConnection):
 
         def __init__(self, host, port, access, verify, context, logger, poolId=-1):
