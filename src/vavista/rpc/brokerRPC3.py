@@ -305,212 +305,237 @@ class VistARPCConnection(RPCConnection):
 
 class CIARPCConnection(RPCConnection):
 
-        def __init__(self, host, port, access, verify, context, logger, poolId=-1):
-                """
-                "CG FMQL QP USER" for FMQL, "CIAV VUECENTRIC" for VUECENTRIC is context
-                """
-                RPCConnection.__init__(self, host, port, access, verify, context, logger, chr(255), poolId)
-                # Sequence number for requests: 
-                # - Loops from 1 to 255. Note CIA Broker does allow up to 255 outstanding requests per connection.
-                # - I am not using this facility. I treat CIA Broker like VistA new style broker.
-                # - Am not doing PINGs either to keep connections alive. If move to support many requests per 
-                #   connection ie. that permission to request and not connection itself is queued, then should
-                #   not need pings.     
-                self.sequence = 0
+    def __init__(self, host, port, access, verify, context, logger, poolId=-1):
+        """
+        "CG FMQL QP USER" for FMQL, "CIAV VUECENTRIC" for VUECENTRIC is context
+        """
+        RPCConnection.__init__(self, host, port, access, verify, context,
+                               logger, chr(255), poolId)
+        # Sequence number for requests:
+        ''' - Loops from 1 to 255. Note CIA Broker does allow up to 255
+                outstanding requests per connection.
+            - I am not using this facility. I treat CIA Broker
+                like VistA new style broker.
+            - Am not doing PINGs either to keep connections alive.
+                If move to support many requests per
+                connection ie. that permission to request and
+                not connection itself
+                is queued, then should not need pings.'''
+        self.sequence = 0
 
-                # Need for first request sent in connect
-                self.uid = "" 
+        # Need for first request sent in connect
+        self.uid = ""
 
-        def connect(self):
-                """
-                CIA form of CONNECT                             
-                """
+    def connect(self):
+        """
+        CIA form of CONNECT
+        """
 
-                # 1. Basic Connect
-                RPCConnection.connect(self)
+        # 1. Basic Connect
+        RPCConnection.connect(self)
 
-                # 2. From CIAConnectAction
-                uci = ""
-                # MSC OVID: set invalid address for callback so that fails right away though manual says won't try this if not in debug mode.
-                myAddress = "NOTVALID";
-                self.logger.logInfo("CIACONNECT", "Sending CIA Connect")
-                ciaConnect = self.__makeCIARequest("C", {"IP": myAddress, "UCI": uci, "DBG": "0", "LP": "0", "VER": "1.6.5.26"})
-                self.sock.send(ciaConnect.encode('utf-8'))
-                connectReply = self.readToEndMarker()
-                # 1^0^1.1^^1
-                self.logger.logInfo("CIACONNECT", "STEP 1 SUCCESS: " + connectReply)
-                        
-                # 3. Sign on Request (Access, Verify)
-                # Note: CIABroker does in one step; VistABroker takes 3. Also Context
-                # is per Request in CIA Broker. It is per connection in VistA Broker.
-                accessVerify = self.encrypt(self.access + ";" + self.verify)
-                "CIANBRPC AUTH"
-                computerName = socket.gethostname()
-                self.uid = ""
-                ciaConnect = self.makeRequest("CIANBRPC AUTH", ["CIAV VUECENTRIC", computerName, "", accessVerify])
-                self.sock.send(ciaConnect.encode('utf-8'))
-                connectReply = self.readToEndMarker()
-                replyLines = connectReply.split("\r")
-                if not (len(replyLines) > 1 and re.match(r'\d+\^', replyLines[1])):
-                        eMsg = "STEP 2 FAIL"
-                        self.logger.logError("CIACONNECT", eMsg)
-                        raise Exception("CIACONNECT", eMsg)
-                self.uid = re.match(r'([^\^]+)', replyLines[1]).group(1)                
-                self.logger.logInfo("CIACONNECT", "STEP 2 SUCCESS - Connected. UID %s" % self.uid)
+        # 2. From CIAConnectAction
+        uci = ""
+        # MSC OVID: set invalid address for callback so that fails right away
+        # though manual says won't try this if not in debug mode.
+        myAddress = "NOTVALID"
+        self.logger.logInfo("CIACONNECT", "Sending CIA Connect")
+        ciaConnect = self.__makeCIARequest("C", {"IP": myAddress, "UCI": uci,
+                                                 "DBG": "0", "LP": "0", "VER": "1.6.5.26"})
+        self.sock.send(ciaConnect.encode('utf-8'))
+        connectReply = self.readToEndMarker()
+        # 1^0^1.1^^1
+        self.logger.logInfo("CIACONNECT", "STEP 1 SUCCESS: " + connectReply)
 
-        # Note: unlike VistA broker, context is per request, not fixed in connection
-        # However the logic here fixes it per connection.
-        def makeRequest(self, rpcName, params):
-                rpcParams = {"CTX": self.context, "UID": self.uid, "VER": "0", "RPC": rpcName}
-                for i in range(len(params)):
-                        rpcParams[str(i+1)] = params[i]
-                return self.__makeCIARequest("R", rpcParams)
+        # 3. Sign on Request (Access, Verify)
+        # Note: CIABroker does in one step; VistABroker takes 3. Also Context
+        # is per Request in CIA Broker. It is per connection in VistA Broker.
+        accessVerify = self.encrypt(self.access + ";" + self.verify)
+        "CIANBRPC AUTH"
+        computerName = socket.gethostname()
+        self.uid = ""
+        ciaConnect = self.makeRequest("CIANBRPC AUTH", ["CIAV VUECENTRIC",
+                                                        computerName, "", accessVerify])
+        self.sock.send(ciaConnect.encode('utf-8'))
+        connectReply = self.readToEndMarker()
+        replyLines = connectReply.split("\r")
+        if not (len(replyLines) > 1 and re.match(r'\d+\^', replyLines[1])):
+            eMsg = "STEP 2 FAIL"
+            self.logger.logError("CIACONNECT", eMsg)
+            raise Exception("CIACONNECT", eMsg)
+        self.uid = re.match(r'([^\^]+)', replyLines[1]).group(1)
+        self.logger.logInfo("CIACONNECT", "STEP 2 SUCCESS - Connected. UID %s" % self.uid)
 
-        # rtype: C for Connect, R for RPC
-        # http://www.mail-archive.com/python-list@python.org/msg229980.html
-        # http://docs.python.org/howto/unicode.html
-        def __makeCIARequest(self, rtype, params):
+        # Note: unlike VistA broker, context is per request,
+        # not fixed in connection. However the logic here fixes it per connection.
+    def makeRequest(self, rpcName, params):
+        rpcParams = {"CTX": self.context, "UID": self.uid, "VER": "0", "RPC": rpcName}
+        for i in range(len(params)):
+            rpcParams[str(i+1)] = params[i]
+        return self.__makeCIARequest("R", rpcParams)
 
-                headerToken = "{CIA}"
-                
-                # 1 byte token
-                EODToken = chr(255)
+    # rtype: C for Connect, R for RPC
+    # http://www.mail-archive.com/python-list@python.org/msg229980.html
+    # http://docs.python.org/howto/unicode.html
+    def __makeCIARequest(self, rtype, params):
 
-                # 1 byte sequence               
-                self.sequence += 1
-                if self.sequence == 256:
-                        self.sequence = 1
-                sequence = chr(self.sequence)
-                
-                if rtype == "R":
-                        brtype = chr(82)
-                else:
-                        brtype = chr(67)
-       
-                # 1 byte rtype
-                
-                # Assemble Parameters (only do string parameters. Add ARRAY in next phase)
-                paramsspecs = ""
-                for paramId, paramValue in params.items():
-                        paramsspecs += self.__byteIt(paramId) + chr(0) + self.__byteIt(paramValue)      
+        headerToken = "{CIA}"
 
-                return headerToken + EODToken + sequence + brtype + paramsspecs + EODToken
-                
-        # Return byte array of length and string val per the CIA Broker encoding scheme
-        def __byteIt(self, strVal):
-                slen = len(strVal)
-                # remainder if /16
-                low = slen % 16
-                # A right shift by n bits is defined as division by pow(2, n) [ie./ /16]
-                slen = slen >> 4
-                bytes = bytearray()
-                highCount = 0
-                while slen != 0:
-                        bytes.append(slen & 0xFF) 
-                        slen = slen >> 8
-                        highCount += 1
-                fbytes = bytearray()
-                # No bytes after this one in first four bits. Left over in second. If < 16, then only one byte overall.
-                fbytes.append((highCount << 4) + low)
-                # Reverse from last byte (highest order) to first (lowest)
-                # ie. big endian
-                for idx in reversed(range(0, len(bytes))):
-                        fbytes.append(bytes[idx])
-                fbytes.extend(bytearray(strVal))
-                return fbytes
-                
+        # 1 byte token
+        EODToken = chr(255)
+
+        # 1 byte sequence
+        self.sequence += 1
+        if self.sequence == 256:
+            self.sequence = 1
+        sequence = chr(self.sequence)
+
+        if rtype == "R":
+            brtype = chr(82)
+        else:
+            brtype = chr(67)
+
+        # 1 byte rtype
+    
+        # Assemble Parameters (only do string parameters. Add ARRAY in next phase)
+        paramsspecs = ""
+        for paramId, paramValue in params.items():
+            paramsspecs += self.__byteIt(paramId) + chr(0) + self.__byteIt(paramValue)
+
+        return headerToken + EODToken + sequence + brtype + paramsspecs + EODToken
+
+    # Return byte array of length and string val per the CIA Broker encoding scheme
+    def __byteIt(self, strVal):
+        slen = len(strVal)
+        # remainder if /16
+        low = slen % 16
+        # A right shift by n bits is defined as division by pow(2, n) [ie./ /16]
+        slen = slen >> 4
+        bytes = bytearray()
+        highCount = 0
+        while slen != 0:
+            bytes.append(slen & 0xFF)
+            slen = slen >> 8
+            highCount += 1
+        fbytes = bytearray()
+        # No bytes after this one in first four bits. Left over in second.
+        # If < 16, then only one byte overall.
+        fbytes.append((highCount << 4) + low)
+        # Reverse from last byte (highest order) to first (lowest)
+        # ie. big endian
+        for idx in reversed(range(0, len(bytes))):
+            fbytes.append(bytes[idx])
+        fbytes.extend(bytearray(strVal))
+        return fbytes
+
 # ############################## RPCConnection Pool ###################
 
-"""
-A connection pool for accessing VistA RPC's from threaded environments like FMQL's Apache resident FMQL Query Processor. The queue manages a list of connections, only using the number required by an application up to the maximum number.
 
-Future - look at:
-- context manager: http://jessenoller.com/2009/02/03/get-with-the-program-as-contextmanager-completely-different/
+"""
+A connection pool for accessing VistA RPC's from threaded environments
+like FMQL's Apache resident FMQL Query Processor. The queue manages a list of
+connections, only using the number required by an application
+up to the maximum number. Future - look at:
+- context manager: http://jessenoller.com/2009/02/03/
+get-with-the-program-as-contextmanager-completely-different/
 """
 import queue
 
 
 class RPCConnectionPool:
 
-        # - for running in WSGI, set poolSize == number of threads expected in a process. 
-        # - brokerType is "VistA" or "CIA"
-        def __init__(self, brokerType, poolSize, host, port, access, verify, context, logger):  
-                self.logger = logger
-                # Queue is LIFO and thread safe. Means threads share a limited set
-                # of connections and will only use what their pace requires ie. if
-                # pool size is five, that doesn't mean five active connections. May
-                # just use and reuse the first one or two over and over.
-                # http://docs.python.org/library/queue.html
-                self.__connectionQueue = queue.LifoQueue()
-                self.__prebuildConnections(brokerType, poolSize, host, port, access, verify, context)
+    # - for running in WSGI, set poolSize == number of threads expected in a process.
+    # - brokerType is "VistA" or "CIA"
+    def __init__(self, brokerType, poolSize, host, port, access,
+                 verify, context, logger):
+        self.logger = logger
+        # Queue is LIFO and thread safe. Means threads share a limited set
+        # of connections and will only use what their pace requires ie. if
+        # pool size is five, that doesn't mean five active connections. May
+        # just use and reuse the first one or two over and over.
+        # http://docs.python.org/library/queue.html
+        self.__connectionQueue = queue.LifoQueue()
+        self.__prebuildConnections(brokerType, poolSize, host, port,
+                                   access, verify, context)
 
-        # Build but don't apply connections. RPCConnection will 
-        # apply itself as needed
-        def __prebuildConnections(self, brokerType, poolSize, host, port, access, verify, context):
-                for i in range(poolSize, 0, -1): # reverse order so numbers match for LIFO
-                        if brokerType == "CIA":
-                                connection = CIARPCConnection(host, port, access, verify, context, self.logger, i)
-                        else: # default is "VistA"
-                                connection = VistARPCConnection(host, port, access, verify, context, self.logger, i)
-                        self.__connectionQueue.put(connection)
-                self.logger.logInfo("CONN POOL", "Initialized %d connections" % poolSize)
-                self.poolSize = poolSize
-                
-        def invokeRPC(self, name, params):
-        
-                # Block until connection is available
-                connection = self.__connectionQueue.get()
-                  
-                try:
-                         reply = connection.invokeRPC(name, params)
-                except Exception as e:   
-                         # Note: retry (reset connection) happens in RPCConnection. If get here then bigger problem.
-                         self.logger.logError("CONN POOL", "Basic connectivity problem. Connection was refused so RPC invocation failed.")
-                         raise e
+    # Build but don't apply connections. RPCConnection will
+    # apply itself as needed
+    def __prebuildConnections(self, brokerType, poolSize, host, port,
+                              access, verify, context):
+        for i in range(poolSize, 0, -1):  # reverse order so numbers match for LIFO
+            if brokerType == "CIA":
+                connection = CIARPCConnection(host, port, access,
+                                              verify, context, self.logger, i)
+            else:  # default is "VistA"
+                connection = VistARPCConnection(host, port, access,
+                                                verify, context, self.logger, i)
+            self.__connectionQueue.put(connection)
+        self.logger.logInfo("CONN POOL", "Initialized %d connections" % poolSize)
+        self.poolSize = poolSize
 
-                self.__connectionQueue.put(connection)
-                  
-                return reply
+    def invokeRPC(self, name, params):
 
-        # Really for testing. Force preconnection of a certain number
-        def preconnect(self, number):
-                if number > self.poolSize:
-                        number = self.poolSize
-                connections = []
-                for i in range(number):
-                        connection = self.__connectionQueue.get()
-                        connection.connect()
-                        connections.append(connection)
-                for i in range(number):
-                        self.__connectionQueue.put(connections[i])
+        # Block until connection is available
+        connection = self.__connectionQueue.get()
+
+        try:
+            reply = connection.invokeRPC(name, params)
+        except Exception as e:
+            # Note: retry (reset connection) happens in RPCConnection.
+            # If get here then bigger problem.
+            self.logger.logError("CONN POOL", "Basic connectivity problem.\
+            Connection was refused so RPC invocation failed.")
+            raise e
+
+        self.__connectionQueue.put(connection)
+
+        return reply
+
+    # Really for testing. Force preconnection of a certain number
+    def preconnect(self, number):
+        if number > self.poolSize:
+            number = self.poolSize
+        connections = []
+        for i in range(number):
+            connection = self.__connectionQueue.get()
+            connection.connect()
+            connections.append(connection)
+        for i in range(number):
+            self.__connectionQueue.put(connections[i])
 
 # ################################ Basic Test ###########################
 
+
 import threading
 
-# Used to test the connection pool.
-class ThreadedRPCInvoker(threading.Thread):
 
-        def __init__(self, pool, requestName, requestParameters):
-                threading.Thread.__init__(self)
-                self.pool = pool
-                self.requestName = requestName
-                self.requestParameters = requestParameters
-                
-        def run(self):
-                print("Sending another request ...")
-                reply = self.pool.invokeRPC(self.requestName, self.requestParameters)
-                print(("First part of reply: %s" % (reply[0:50],)))
+class ThreadedRPCInvoker(threading.Thread):
+    # Used to test the connection pool.
+    def __init__(self, pool, requestName, requestParameters):
+        threading.Thread.__init__(self)
+        self.pool = pool
+        self.requestName = requestName
+        self.requestParameters = requestParameters
+
+    def run(self):
+        print("Sending another request ...")
+        reply = self.pool.invokeRPC(self.requestName, self.requestParameters)
+        print(("First part of reply: %s" % (reply[0:50],)))
+
 
 class RPCLogger:
-        def __init__(self):
-                pass
-        def logInfo(self, tag, msg):
-                self.__log(tag, msg)
-        def logError(self, tag, msg):
-                self.__log(tag, msg)
-        def __log(self, tag, msg):
-                print(("BROKERRPC -- %s %s" % (tag, msg)))
+    def __init__(self):
+        pass
+
+    def logInfo(self, tag, msg):
+        self.__log(tag, msg)
+
+    def logError(self, tag, msg):
+        self.__log(tag, msg)
+
+    def __log(self, tag, msg):
+        print(("BROKERRPC -- %s %s" % (tag, msg)))
+
 
 import getopt, sys
 import json
