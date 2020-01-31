@@ -542,33 +542,75 @@ import json
 import time
 
 
+def query_test(conn):
+    rpc = input("Enter RPC: ")
+    params = input("Enter params: ")
+    params = params.strip()
+    reply = conn.invokeRPC(rpc.strip(), list(params.split()))
+    print(reply)
+
+
+def main_test():
+    CONNECTION = VistARPCConnection("vista1", 9297,
+                                    "GERALD1", "GREATDAY8*", "XUPROGMODE",
+                                    RPCLogger())
+    MENUCHOICE = {'q': query_test, 'e': exit}
+    menu = '''
+    Main Menu
+    (Q)uery
+    (E)xit
+    Enter choice: '''
+
+    while True:
+        while True:
+            try:
+                choice = input(menu).strip()[0].lower()
+            except (EOFError, KeyboardInterrupt, IndexError):
+                choice = 'e'
+
+            print('\nYou picked: [%s]' % choice)
+            if choice not in 'qe':
+                print('Invalid option, try again')
+            else:
+                break
+
+        if choice == 'e':
+            break
+            exit(0)
+        MENUCHOICE[choice](conn=CONNECTION)
+    
+    
 def main():
     opts, args = getopt.getopt(sys.argv[1:], "")
-    if len(args) < 4:
+    if len(args) < 0:
         print("Enter <host> <port> <access> <verify>")
         return
 
 # VERY BASIC:
-    connection = VistARPCConnection(args[0], int(args[1]),
-                                    args[2], args[3], "XUPROGMODE",
+    connection = VistARPCConnection("vista1", 9297,
+                                    "GERALD1", "GREATDAY8*", "XUPROGMODE",
                                     RPCLogger())
-    reply = connection.invokeRPC("ORWPT ID INFO", "2")
+    reply = connection.invokeRPC("ORWPT ID INFO", ["2"])
     # json.loads(reply)
+    print("reply is of type: %s" % (type(reply),))
+    print(reply)
+    reply = connection.invokeRPC("XWB EGCHO STRING",["Hello"])
     print(reply)
 
     # 10 and 20 ie. pool size 10, request number 20. Can interplay.
     # Should see some connection come more to the fore.
     # Should see, full size isn't
-    print("Testing threaded connection pool")
-    pool = RPCConnectionPool("VistA", 30, args[0], int(args[1]),
-                             args[2], args[3], "XUPROGMODE", RPCLogger())
-    pool.preconnect(3)
-    for i in range(3):
-        patient_id = str(i + 1)
-        trpcInvoker = ThreadedRPCInvoker(pool,
-                                         "ORWPT ID INFO", patient_id)
-        trpcInvoker.start()
+#   print("Testing threaded connection pool")
+#   pool = RPCConnectionPool("VistA", 30, args[0], int(args[1]),
+#                             args[2], args[3], "XUPROGMODE", RPCLogger())
+    # pool.preconnect(3)
+    # for i in range(3):
+        # patient_id = str(i + 1)
+        # trpcInvoker = ThreadedRPCInvoker(pool,
+          #                               "ORWPT ID INFO", patient_id)
+        # trpcInvoker.start()
 
 
 if __name__ == "__main__":
-    main()
+#    main()
+    main_test()
