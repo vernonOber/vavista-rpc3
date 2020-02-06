@@ -8,6 +8,10 @@ The vavista.rpc module does not depend on the M interfaces modules, i.e.
 it is not bound to a GT.M interpreter. It communicates client server over
 a TCP connection.
 
+brokerRPC3.py has been modified to work with Python 3. Running from the
+command line will enter an interactive testing session with the
+context "XUPROGMODE".
+
 Credit
 ------
 
