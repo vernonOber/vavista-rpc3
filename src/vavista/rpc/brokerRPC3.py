@@ -551,8 +551,13 @@ def query_test(conn):
 
 
 def main_test():
-    CONNECTION = VistARPCConnection("vista1", 9297,
-                                    "GERALD1", "GREATDAY8*", "XUPROGMODE",
+    opts, args = getopt.getopt(sys.argv[1:], "")
+    if len(args) < 1:
+        print("Enter <host> <port> <access> <verify>")
+        return
+
+    CONNECTION = VistARPCConnection(args[0], int(args[1]),
+                                    args[2], args[3], "XUPROGMODE",
                                     RPCLogger())
     MENUCHOICE = {'q': query_test, 'e': exit}
     menu = '''
