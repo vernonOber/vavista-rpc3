@@ -1,0 +1,74 @@
+--- brokerRPC.py	(original)
++++ brokerRPC.py	(refactored)
+@@ -27,7 +27,7 @@
+ __version__=  '0.9'
+ __status__ = "Production"
+ 
+-import StringIO
++import io
+ import re
+ import time
+ import socket
+@@ -252,7 +252,7 @@
+ 				else: # we are in a dictionary
+ 					paramsspecs += "2" # Type of RPC: List
+ 					paramIndex = 1 # keep track of where to put the t's
+-					for key,val in param.items():
++					for key,val in list(param.items()):
+ 						if paramIndex > 1: paramsspecs += "t" # t is the delimiter b/n each key,val pair
+ 						paramsspecs += str(len(str(key))).zfill(3) + str(key) # L-PACK
+ 						paramsspecs += str(len(str(val))).zfill(3) + str(val) # L-PACK
+@@ -350,7 +350,7 @@
+ 		
+ 		# Assemble Parameters (only do string parameters. Add ARRAY in next phase)
+ 		paramsspecs = ""
+-		for paramId, paramValue in params.iteritems():
++		for paramId, paramValue in params.items():
+ 			paramsspecs += self.__byteIt(paramId) + chr(0) + self.__byteIt(paramValue)	
+ 
+ 		return headerToken + EODToken + sequence + brtype + paramsspecs + EODToken
+@@ -373,7 +373,7 @@
+ 		fbytes.append((highCount << 4) + low)
+ 		# Reverse from last byte (highest order) to first (lowest)
+ 		# ie. big endian
+-		for idx in reversed(xrange(0, len(bytes))):
++		for idx in reversed(range(0, len(bytes))):
+ 			fbytes.append(bytes[idx])
+ 		fbytes.extend(bytearray(strVal))
+ 		return fbytes
+@@ -386,7 +386,7 @@
+ Future - look at:
+ - context manager: http://jessenoller.com/2009/02/03/get-with-the-program-as-contextmanager-completely-different/
+ """
+-import Queue
++import queue
+ class RPCConnectionPool:
+ 
+ 	# - for running in WSGI, set poolSize == number of threads expected in a process. 
+@@ -398,7 +398,7 @@
+ 		# pool size is five, that doesn't mean five active connections. May
+ 		# just use and reuse the first one or two over and over.
+ 		# http://docs.python.org/library/queue.html
+-		self.__connectionQueue = Queue.LifoQueue()
++		self.__connectionQueue = queue.LifoQueue()
+ 		self.__prebuildConnections(brokerType, poolSize, host, port, access, verify, context)
+ 
+ 	# Build but don't apply connections. RPCConnection will 
+@@ -457,7 +457,7 @@
+ 	def run(self):
+ 		print("Sending another request ...")
+ 		reply = self.pool.invokeRPC(self.requestName, self.requestParameters)
+-		print("First part of reply: %s" % (reply[0:50],))
++		print(("First part of reply: %s" % (reply[0:50],)))
+ 
+ class RPCLogger:
+ 	def __init__(self):
+@@ -467,7 +467,7 @@
+ 	def logError(self, tag, msg):
+ 		self.__log(tag, msg)
+ 	def __log(self, tag, msg):
+-		print("BROKERRPC -- %s %s" % (tag, msg))
++		print(("BROKERRPC -- %s %s" % (tag, msg)))
+ 
+ import getopt, sys
+ import json

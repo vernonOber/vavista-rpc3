@@ -1,3 +1,10 @@
+#
+# LICENSE:
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License version 3 (AGPL)
+# as published by the Free Software Foundation.
+# (c) 2010-2011 caregraf.org
+#
 
 # This module contains the customisations of the brokerRPC.py classes
 # that I am using to implement my API. The idea is that I can keep 
