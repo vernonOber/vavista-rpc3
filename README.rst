@@ -15,8 +15,8 @@ context "XUPROGMODE".
 Credit
 ------
 
-The brokerRPC.py code belongs to Caregraph.org's FMQL product. I put it here for ease of
-reuse.
+The brokerRPC.py code belongs to Caregraph.org's FMQL product. Forked
+from https://github.com/kevingill1966/vavista-rpc 1/2020 .
 
 Setup Information
 -----------------
