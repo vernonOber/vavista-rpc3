@@ -592,8 +592,8 @@ def main():
         return
 
 # VERY BASIC:
-    connection = VistARPCConnection("vista1", 9297,
-                                    "GERALD1", "GREATDAY8*", "XUPROGMODE",
+    connection = VistARPCConnection("host", 9297,
+                                    "ACCESS", "VERIFY", "XUPROGMODE",
                                     RPCLogger())
     reply = connection.invokeRPC("ORWPT ID INFO", ["2"])
     # json.loads(reply)
