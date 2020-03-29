@@ -26,12 +26,13 @@ listed here, or the completeness. -Vernon Oberholzer 2/2020
 Setup Information
 -----------------
 Ideally first setup a Python 3 virtual env.
-mkdir vavista
-cd vavista
-python3 -m venv venv
-source venv/bin/activate
-download the dist dir
-pip install dist/vavista_rpc-0.0.9-py3-none-any.whl
+ 1. mkdir vavista
+ 2. cd vavista
+ 3. python3 -m venv venv
+ 4. source venv/bin/activate
+ 5. download the dist dir
+ 6. pip install dist/vavista_rpc-0.0.9-py3-none-any.whl
+ 7. Or, just download and use the module vavista_rpc/brokerRPC3.py directly
 
 
 **Application Context**
