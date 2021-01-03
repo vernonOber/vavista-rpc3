@@ -2,7 +2,7 @@ import setuptools
 
 
 setuptools.setup(
-    name='vavista_rpc',
+    name='vavista-rpc-VernonO',
     version='0.0.9',
     author='Conor Dowling, Kevin Gill',
     author_email='vo2521@gmail.com',
