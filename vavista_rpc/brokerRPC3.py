@@ -201,11 +201,13 @@ class VistARPCConnection(RPCConnection):
         RPCConnection.__init__(self, host, port, access, verify, context,
                                logger, chr(4), poolId)
 
-    def connect(self):
-        """
-        How VistA Broker connects
-        """
+    def __del__(self):
+        """Cleanup code, sends #BYE# to VistA."""
+        self.sock.send("#BYE#".encode('utf-8'))
+        self.sock.close()
 
+    def connect(self):
+        """How VistA Broker connects."""
         # 1. Basic Connect
         RPCConnection.connect(self)
 
