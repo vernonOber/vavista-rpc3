@@ -1,10 +1,10 @@
 ---
-title: 'vavista\_rpc (Python access to VistA RPCs)'
+title: 'vavista-rpc3 (Python access to VistA RPCs)'
 ---
 
-The vavista\_rpc.brokerRPC3 module provides a very simple mechanism for
+The vavista_rpc.brokerRPC3 module provides a very simple mechanism for
 calling VistA RPCs. Simply connect, and call the RPC you are interested
-in.
+in. The 3 in the name denotes that this runs under Python 3.
 
 The vavista.rpc module does not depend on the M interfaces modules, i.e.
 it is not bound to a GT.M interpreter. It communicates client server
