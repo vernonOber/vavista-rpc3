@@ -3,7 +3,7 @@ import setuptools
 
 setuptools.setup(
     name='vavista_rpc',
-    version='0.0.12',
+    version='0.0.13',
     author='Conor Dowling, Kevin Gill',
     author_email='vo2521@gmail.com',
     description='VAVista RPC interface',
